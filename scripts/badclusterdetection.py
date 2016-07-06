@@ -50,14 +50,14 @@ for cluster in clusters:
 				tn += 1
 
 #print analysis
-print "Positive Clusters: " + str(positiveClusters)
-print "Negative Clusters: " + str(negativeClusters)
-print "TP:                " + str(tp)
-print "TN:                " + str(tn)
-print "FP:                " + str(fp)
-print "FN:                " + str(fn)
-print "TPR:               " + str(float(tp) / (tp + fp))
-print "TNR:               " + str(float(tn) / (tn + fn))
-print "FPR:               " + str(float(fp) / (tp + fp))
-print "FNR:               " + str(float(fn) / (tn + fn))
-
+print "Positive Clusters:", str(positiveClusters)
+print "Negative Clusters:", str(negativeClusters)
+print "TP:               ", str(tp)
+print "TN:               ", str(tn)
+print "FP:               ", str(fp)
+print "FN:               ", str(fn)
+print "TPR:              ", str(float(tp) / (tp + fp))
+print "TNR:              ", str(float(tn) / (tn + fn))
+print "FPR:              ", str(float(fp) / (tp + fp))
+print "FNR:              ", str(float(fn) / (tn + fn))
+print "ACCURACY:         ", str((tp + tn) / float(tp + tn + fp + fn))
