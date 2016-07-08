@@ -9,13 +9,22 @@ output = open(outputfilename, 'w')
 
 weights = {}
 for line in lines:
-	i, j, weight = line.split(" ")
-	weights[i + " " + j] = float(weight)
+	i, j, weight = line.split()
+	if i in weights:
+		weights[i][j] = weight
+	else:
+		weights[i] = {j:weight} 
+	
+	if j in weights:
+		weights[j][i] = weight
+	else:
+		weights[j] = {i:weight}
 
 alreadyAdded = []
-for keep in sorted(weights.iterkeys(), key=(lambda key: weights[key]))[::-1][:knng]:
-	if not ' '.join(keep.split(' ')[::-1]) in alreadyAdded:
-		output.write(keep + " " + str(weights[keep]) + "\n")
-		alreadyAdded.append(keep)
+for index in weights:
+	for keep in sorted(weights[index].iterkeys(), key=(lambda key: weights[index][key]))[::-1][:knng]:
+		if not ' '.join(keep.split(' ')[::-1]) in alreadyAdded:
+			output.write(index + " " +  keep + " " + str(weights[index][keep]) + "\n")
+			alreadyAdded.append(keep)
 
 output.close()

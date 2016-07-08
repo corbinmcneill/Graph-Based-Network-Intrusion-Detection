@@ -48,7 +48,7 @@ public class BC {
 		
 		//IF ANY OF THESE FLAGS WERE PASSED, PRINT USAGE INSTRUCTIONS AND EXIT
 		for (String arg : args) {
-			if (arg.equals("-h") || arg.equals("--help") || arg.equals("-help") || arg.equals("-man") || arg.equals("--man")) {
+			if (arg.equals("-h") || arg.equals("--help") || arg.equals("-help")) {
 				printUsageInformation();
 				System.exit(0);
 			}
@@ -422,7 +422,7 @@ public class BC {
 
 			String[] valueSplit = value.toString().split("\t");
 			String[] data = valueSplit[0].split(",");
-			String suffix = data.length>1 ? " " + data[2] : "";
+			String suffix = data.length>2 ? " " + data[2] : "";
 			context.write(new Text(data[0]), new Text(valueSplit[1] + suffix));
 			context.write(new Text(data[1]), new Text(valueSplit[1] + suffix));
 		}
