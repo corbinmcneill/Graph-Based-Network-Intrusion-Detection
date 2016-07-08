@@ -10,21 +10,26 @@ output = open(outputfilename, 'w')
 weights = {}
 for line in lines:
 	i, j, weight = line.split()
-	if i in weights:
-		weights[i][j] = weight
+
+	if i < j:
+		v = [i,j]
 	else:
-		weights[i] = {j:weight} 
-	
-	if j in weights:
-		weights[j][i] = weight
+		v = [j,i]
+
+	if v[0] in weights:
+		weights[v[0]][v[1]] = weight
 	else:
-		weights[j] = {i:weight}
+		weights[v[0]] = {v[1]:weight} 
 
 alreadyAdded = []
-for index in weights:
-	for keep in sorted(weights[index].iterkeys(), key=(lambda key: weights[index][key]))[::-1][:knng]:
-		if not ' '.join(keep.split(' ')[::-1]) in alreadyAdded:
-			output.write(index + " " +  keep + " " + str(weights[index][keep]) + "\n")
-			alreadyAdded.append(keep)
+for a in weights:
+	for b in sorted(weights[a].iterkeys(), key=(lambda key: weights[a][key]))[::-1][:knng]:
+		if a < b:
+			v = [a,b]
+		else:
+			v = [b,a]
+		if not ' '.join(v) in alreadyAdded:
+			output.write(' '.join(v+[weight[v[0][v[1]]]]) + "\n")
+			alreadyAdded.append(' '.join(v))
 
 output.close()
