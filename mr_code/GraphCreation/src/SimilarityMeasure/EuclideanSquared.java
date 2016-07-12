@@ -1,7 +1,7 @@
 package SimilarityMeasure;
 
 public class EuclideanSquared implements SimilarityMeasure {
-	private static final int MAX_VALUES[]= {902, 0, 0, 56504, 15279, 5, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1}; 
+	private static final int MAX_VALUES[]= {12112, 0, 0, 93184, 5203179, 19, 3, 8, 1, 1, 7, 4, 2, 1, 1, 1, 1}; 
 	private static double MAX_DISTANCE = 0;
 	
 	public double getDistance(String[] a, String[] b) {

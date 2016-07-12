@@ -2,7 +2,7 @@ from sys import argv
 from random import randint
 from string import strip
 
-NUMBER_OF_SAMPLES = 500
+NUMBER_OF_SAMPLES = 10000
 DIMENSIONS = [0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41]
 
 

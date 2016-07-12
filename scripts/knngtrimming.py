@@ -10,6 +10,8 @@ output = open(outputfilename, 'w')
 weights = {}
 for line in lines:
 	i, j, weight = line.split()
+	i = int(i)
+	j = int(j)
 
 	if i < j:
 		v = [i,j]
@@ -28,8 +30,8 @@ for a in weights:
 			v = [a,b]
 		else:
 			v = [b,a]
-		if not ' '.join(v) in alreadyAdded:
-			output.write(' '.join(v+[weight[v[0][v[1]]]]) + "\n")
-			alreadyAdded.append(' '.join(v))
+		if not ' '.join(map(str,v)) in alreadyAdded:
+			output.write(' '.join(map(str,v)+[weights[v[0]][v[1]]]) + '\n')
+			alreadyAdded.append(' '.join(map(str,v)))
 
 output.close()

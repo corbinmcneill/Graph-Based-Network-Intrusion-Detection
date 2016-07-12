@@ -1,10 +1,10 @@
 from sys import argv
 
-filename, inputfilename = argv
+filename, inputfilename, size = argv
 
 lines = [line for line in open(inputfilename,'r')]
 
-disjointSets = [[i] for i in xrange(500)]
+disjointSets = [[i] for i in xrange(int(size))]
 
 def find(vertex):
 	for i in xrange(len(disjointSets)):
