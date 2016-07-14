@@ -1,10 +1,13 @@
 package SimilarityMeasure;
 
 public class EuclideanSquared implements SimilarityMeasure {
-	private static final int MAX_VALUES[]= {12112, 0, 0, 93184, 5203179, 19, 3, 8, 1, 1, 7, 4, 2, 1, 1, 1, 1}; 
+	private static double MAX_VALUES[];
 	private static double MAX_DISTANCE = 0;
 	
-	public double getDistance(String[] a, String[] b) {
+	public double getDistance(String[] a, String[] b) throws MaximumsNotSetException {
+		if (MAX_VALUES == null) {
+			throw new MaximumsNotSetException();
+		}
 		double distance = 0;
 		for (int i=0; i<MAX_VALUES.length; i++) {
 			if (MAX_VALUES[i] == 0) {
@@ -25,4 +28,7 @@ public class EuclideanSquared implements SimilarityMeasure {
 		return MAX_DISTANCE;
 	}
 
+	public void setMaximums(double[] a) {
+		MAX_VALUES = a;
+	}
 }

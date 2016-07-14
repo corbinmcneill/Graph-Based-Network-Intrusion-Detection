@@ -36,12 +36,13 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import SimilarityMeasure.EuclideanSquared;
+import SimilarityMeasure.MaximumsNotSetException;
 import SimilarityMeasure.SimilarityMeasure;
 
 
 public class Creator {
 
-	public static class MapClass extends Mapper<LongWritable, Text, Text, Text> {
+	public static class EdgeCreate extends Mapper<LongWritable, Text, Text, Text> {
 
 		ArrayList<String> lines = new ArrayList<String>();
 		
@@ -81,7 +82,7 @@ public class Creator {
 	  
 	}
 
-	public static class ReduceClass extends Reducer<Text, Text, IntWritable, Text> {
+	public static class DistanceCalc extends Reducer<Text, Text, IntWritable, Text> {
 		
 		SimilarityMeasure sm = new EuclideanSquared();
 
@@ -98,8 +99,13 @@ public class Creator {
   				int b = Integer.parseInt(splitB1.nextToken());
   				String[] stringB = splitB1.nextToken().split(" |,");  				  	  			
   	  			
-  				double distance = sm.getDistance(stringA, stringB);
-   	  			double weight = distance==0 ? sm.maxDistance() : Math.exp(-distance);
+  				try {
+  					double distance = sm.getDistance(stringA, stringB);
+  					double weight = distance==0 ? sm.maxDistance() : Math.exp(-distance);
+  				} catch (MaximumsNotSetException e) {
+  					//TODO: set maximums here
+  				}
+   	  			
   	  			context.write(new IntWritable(a),new Text(Integer.toString(b) + " " + Double.toString(weight)));
   			}
   		}
@@ -110,8 +116,8 @@ public class Creator {
 		Job job = Job.getInstance(conf, "graph creator");
 		
 		job.setJarByClass(Creator.class);
-		job.setMapperClass(MapClass.class);
-	  	job.setReducerClass(ReduceClass.class);
+		job.setMapperClass(EdgeCreate.class);
+	  	job.setReducerClass(DistanceCalc.class);
 	  	job.setMapOutputKeyClass(Text.class);
 	  	job.setMapOutputValueClass(Text.class);
 	  	job.setOutputKeyClass(IntWritable.class);
