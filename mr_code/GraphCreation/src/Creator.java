@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.PriorityQueue;
 import java.util.StringTokenizer;
 
 import org.apache.hadoop.conf.Configuration;
@@ -29,6 +32,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.TestJobCounters.NewMapTokenizer;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -41,6 +45,9 @@ import SimilarityMeasure.SimilarityMeasure;
 
 
 public class Creator {
+	
+	private static final String INTERMEDIATE_PATH = "intermediate/";
+	
 	public static class Preprocess extends Mapper<LongWritable, Text, Text, Text> {
 		public static final int DIMENSIONS[] = {0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41};
 		public static int LOCAL_MAXIMUMS[];
@@ -80,8 +87,20 @@ public class Creator {
 		@Override
 		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
 			if (key.toString().equals("MAXIMUMS")) {
-				
-				//find the maximum of the maximums
+				int maximums[] = new int[0];
+				for (Text val : vals) {
+					if (maximums.length == 0) {
+						maximums = new int[val.toString().split(",").length];
+						Arrays.fill(maximums, -1);
+					}
+					for (int i=0; i<maximums.length; i++) {
+						int a = Integer.parseInt(val.toString().split(",")[i]);
+						if (a > maximums[i]) {
+							maximums[i] = a;
+						}
+					}
+				}
+				context.getConfiguration().set("maximums", Arrays.toString(maximums));
 			} else {
 				for (Text val : vals) {
 					context.write(key, val);
@@ -127,8 +146,19 @@ public class Creator {
 	public static class DistanceCalc extends Reducer<Text, Text, IntWritable, Text> {
 		
 		SimilarityMeasure sm = new EuclideanSquared();
+		
+		@Override
+		public void setup(Context context) throws IOException ,InterruptedException {
+			String maximumsString = context.getConfiguration().get("maximums");
+			double a[] = new double[maximumsString.split(",").length];
+			String maxSplit[] = maximumsString.substring(1, a.length-1).split(",");
+			for (int i=0; i<a.length; i++) {
+				a[i] = Double.parseDouble(maxSplit[i]);	
+			}
+			sm.setMaximums(a);
+		};
 
-  		@Override 
+  		@Override
   		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
   			
   			StringTokenizer splitA1 = new StringTokenizer(key.toString());
@@ -147,33 +177,119 @@ public class Creator {
   					
   					context.write(new IntWritable(a),new Text(Integer.toString(b) + " " + Double.toString(weight)));
   				} catch (MaximumsNotSetException e) {
+  					e.printStackTrace();
   					//TODO: set maximums here and retry
   				}
    	  			
   	  		}
   		}
   	}
+	
+	public static class BinByVertex extends Mapper<LongWritable, Text, Text, Text> {
+		@Override
+		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
+			String values[] = val.toString().split(" |\t");
+			context.write(new Text(values[0]), val);
+			context.write(new Text(values[1]), val);
+		}
+	}
+	
+	public static class kNNFilter extends Reducer<Text, Text, Text, Text> {
+		
+		public static class Datum {
+			public int v;
+			public double w;
+			
+			public Datum(int vertex, double weight) {
+				this.v = vertex;
+				this.w = weight;
+			}
+		}
+		
+		@Override
+		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
+			int kVal = Integer.parseInt(context.getConfiguration().get("kVal"));
+			PriorityQueue<Creator.kNNFilter.Datum> pq = new PriorityQueue<Creator.kNNFilter.Datum>(kVal + 1, new Comparator<Creator.kNNFilter.Datum>() {
+				@Override
+				public int compare(Datum o1, Datum o2) {
+					if (o1.w > o2.w) {
+						return 1;
+					} else if (o1.w < o2.w) {
+						return -1;
+					} else {
+						return 0;
+					}
+				}
+			});
+			
+			//build the priority queue
+			for (Text val : vals) {
+				String stringVal[] = val.toString().split(" ");
+				pq.offer(new Datum(Integer.parseInt(stringVal[0]), Double.parseDouble(stringVal[1])));
+				if (pq.size() > kVal) {
+					pq.remove();
+				}
+			}
+			
+			for (Datum d : pq) {
+				context.write(new Text(key.toString() + " " + Integer.toString(d.v)), new Text(Double.toString(d.w)));
+			}
+		}
+	}
+	
+	public static class IdentityMap extends Mapper<LongWritable, Text, Text, Text> {
+		@Override
+		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
+			String values[] = val.toString().split("\t");
+			context.write(new Text(values[0]), new Text(values[1]));
+		}
+	}
+	
+	public static class RemoveDuplicateEdges extends Reducer<Text, Text, Text, Text> {
+		
+		@Override
+		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
+			context.write(key, vals.iterator().next()); //return the first value since all the values are identitcal
+		}
+	}
+
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
 		conf.set("mapreduce.input.fileinputformat.split.maxsize", "2500");
 		conf.set("mapreduce.job.reduces", "50");
 		
-		/* GRAPH CREATION */
-		Job job = Job.getInstance(conf, "graph creation");
+		/* PREPROCESS */
+		Job job1 = Job.getInstance(conf, "preprocess");
 		
-		job.setJarByClass(Creator.class);
-		job.setMapperClass(EdgeCreate.class);
-	  	job.setReducerClass(DistanceCalc.class);
-	  	job.setMapOutputKeyClass(Text.class);
-	  	job.setMapOutputValueClass(Text.class);
-	  	job.setOutputKeyClass(IntWritable.class);
-	  	job.setOutputValueClass(Text.class);
+		job1.setJarByClass(Creator.class);
+		job1.setMapperClass(Preprocess.class);
+		job1.setReducerClass(AggregateMax.class);
+		job1.setMapOutputKeyClass(Text.class);
+		job1.setMapOutputValueClass(Text.class);
+		job1.setOutputKeyClass(Text.class);
+		job1.setOutputValueClass(Text.class);
+		
+		FileInputFormat.addInputPath(job1, new Path(args[0]));
+		FileOutputFormat.setOutputPath(job1, new Path(INTERMEDIATE_PATH));
+		
+		/* GRAPH CREATION */
+		Job job2 = Job.getInstance(conf, "edge creation");
+		
+		job2.setJarByClass(Creator.class);
+		job2.setMapperClass(EdgeCreate.class);
+	  	job2.setReducerClass(DistanceCalc.class);
+	  	job2.setMapOutputKeyClass(Text.class);
+	  	job2.setMapOutputValueClass(Text.class);
+	  	job2.setOutputKeyClass(IntWritable.class);
+	  	job2.setOutputValueClass(Text.class);
 	  		  	
-	  	FileInputFormat.addInputPath(job, new Path(args[0]));
-	  	FileOutputFormat.setOutputPath(job, new Path(args[1]));
-	  	job.addCacheFile(new URI("hdfs://localhost:9000/user/hduser/" + args[2]));
+	  	FileInputFormat.addInputPath(job2, new Path(INTERMEDIATE_PATH));
+	  	FileOutputFormat.setOutputPath(job2, new Path(args[1]));
+	  	job2.addCacheFile(new URI("hdfs://localhost:9000/user/hduser/" + args[2]));
 	  	
-	  	job.waitForCompletion(true);
+	  	job2.waitForCompletion(true); 	
+	  	
+	  	//TODO: run 2 more jobs using the last 4 internal classes in order to trim the graph to a kNNG
 	}
 }
