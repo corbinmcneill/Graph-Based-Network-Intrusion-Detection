@@ -41,6 +41,54 @@ import SimilarityMeasure.SimilarityMeasure;
 
 
 public class Creator {
+	public static class Preprocess extends Mapper<LongWritable, Text, Text, Text> {
+		public static final int DIMENSIONS[] = {0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41};
+		public static int LOCAL_MAXIMUMS[];
+		
+		@Override
+		public void setup(Context context) {
+			LOCAL_MAXIMUMS = new int[DIMENSIONS.length - 1]; //creates 0 array
+			for (int i : DIMENSIONS) {
+				if (i >=1 && i <=3) {
+					LOCAL_MAXIMUMS[i] = -1;
+				}
+			}
+		}
+		
+		@Override
+		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
+			int number = Integer.parseInt(val.toString().split(" |\t")[0]);
+			String[] dataStrings = val.toString().split(" |\t")[1].split(",");
+			String collection = "";
+			for (int i=0; i<DIMENSIONS.length-1; i++) {
+				collection += dataStrings[DIMENSIONS[i]] + ",";
+				if (LOCAL_MAXIMUMS[i] != -1 && Integer.parseInt(dataStrings[DIMENSIONS[i]]) > LOCAL_MAXIMUMS[i]) {
+					LOCAL_MAXIMUMS[i] = Integer.parseInt(dataStrings[DIMENSIONS[i]]);
+				}
+			}
+			collection = collection.substring(0, collection.length() -1);
+			context.write(new Text(Integer.toString(number)), new Text(collection));
+		}
+		
+		@Override
+		public void cleanup(Context context) throws IOException, InterruptedException {
+			context.write(new Text("MAXIMUMS"), new Text(LOCAL_MAXIMUMS.toString()));
+		}
+	}
+	
+	public static class AggregateMax extends Reducer <Text, Text, Text, Text> {
+		@Override
+		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
+			if (key.toString().equals("MAXIMUMS")) {
+				
+				//find the maximum of the maximums
+			} else {
+				for (Text val : vals) {
+					context.write(key, val);
+				}
+			}
+		}
+	}
 
 	public static class EdgeCreate extends Mapper<LongWritable, Text, Text, Text> {
 
@@ -69,17 +117,11 @@ public class Creator {
 	  
 		@Override
 		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
-			int i = 0;
-			while (val.charAt(i) != ' ') {
-			  i++;
-			}
-			int number;
-			number = Integer.parseInt(val.toString().substring(0, i));
+			int number = Integer.parseInt(val.toString().split(" |\t")[0]);
 			for (int j = number+1; j<lines.size(); j++) {
 				context.write(val, new Text(lines.get(j)));
 			}
 		}
-	  
 	}
 
 	public static class DistanceCalc extends Reducer<Text, Text, IntWritable, Text> {
@@ -102,18 +144,23 @@ public class Creator {
   				try {
   					double distance = sm.getDistance(stringA, stringB);
   					double weight = distance==0 ? sm.maxDistance() : Math.exp(-distance);
+  					
+  					context.write(new IntWritable(a),new Text(Integer.toString(b) + " " + Double.toString(weight)));
   				} catch (MaximumsNotSetException e) {
-  					//TODO: set maximums here
+  					//TODO: set maximums here and retry
   				}
    	  			
-  	  			context.write(new IntWritable(a),new Text(Integer.toString(b) + " " + Double.toString(weight)));
-  			}
+  	  		}
   		}
   	}
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
-		Job job = Job.getInstance(conf, "graph creator");
+		conf.set("mapreduce.input.fileinputformat.split.maxsize", "2500");
+		conf.set("mapreduce.job.reduces", "50");
+		
+		/* GRAPH CREATION */
+		Job job = Job.getInstance(conf, "graph creation");
 		
 		job.setJarByClass(Creator.class);
 		job.setMapperClass(EdgeCreate.class);
@@ -122,14 +169,11 @@ public class Creator {
 	  	job.setMapOutputValueClass(Text.class);
 	  	job.setOutputKeyClass(IntWritable.class);
 	  	job.setOutputValueClass(Text.class);
-	  	
-	  	job.setNumReduceTasks(50);
-	  	job.getConfiguration().set("mapreduce.input.fileinputformat.split.maxsize", "2500");
-	  	
+	  		  	
 	  	FileInputFormat.addInputPath(job, new Path(args[0]));
 	  	FileOutputFormat.setOutputPath(job, new Path(args[1]));
 	  	job.addCacheFile(new URI("hdfs://localhost:9000/user/hduser/" + args[2]));
 	  	
-	  	System.exit(job.waitForCompletion(true)? 0 : 1);
+	  	job.waitForCompletion(true);
 	}
 }
