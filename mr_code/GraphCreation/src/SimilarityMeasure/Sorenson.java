@@ -20,4 +20,8 @@ public class Sorenson implements SimilarityMeasure {
 	public double maxDistance() {
 		return DIMENSION;
 	}
+
+	public void setMaximums(double[] a) {
+		return;
+	}
 }
