@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.StringTokenizer;
@@ -32,7 +31,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.TestJobCounters.NewMapTokenizer;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -46,69 +44,8 @@ import SimilarityMeasure.SimilarityMeasure;
 
 public class Creator {
 	
-	private static final String INTERMEDIATE_PATH = "intermediate/";
+	private static final String INTERMEDIATE_PATH = "intermediate";
 	
-	public static class Preprocess extends Mapper<LongWritable, Text, Text, Text> {
-		public static final int DIMENSIONS[] = {0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41};
-		public static int LOCAL_MAXIMUMS[];
-		
-		@Override
-		public void setup(Context context) {
-			LOCAL_MAXIMUMS = new int[DIMENSIONS.length - 1]; //creates 0 array
-			for (int i : DIMENSIONS) {
-				if (i >=1 && i <=3) {
-					LOCAL_MAXIMUMS[i] = -1;
-				}
-			}
-		}
-		
-		@Override
-		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
-			int number = Integer.parseInt(val.toString().split(" |\t")[0]);
-			String[] dataStrings = val.toString().split(" |\t")[1].split(",");
-			String collection = "";
-			for (int i=0; i<DIMENSIONS.length-1; i++) {
-				collection += dataStrings[DIMENSIONS[i]] + ",";
-				if (LOCAL_MAXIMUMS[i] != -1 && Integer.parseInt(dataStrings[DIMENSIONS[i]]) > LOCAL_MAXIMUMS[i]) {
-					LOCAL_MAXIMUMS[i] = Integer.parseInt(dataStrings[DIMENSIONS[i]]);
-				}
-			}
-			collection = collection.substring(0, collection.length() -1);
-			context.write(new Text(Integer.toString(number)), new Text(collection));
-		}
-		
-		@Override
-		public void cleanup(Context context) throws IOException, InterruptedException {
-			context.write(new Text("MAXIMUMS"), new Text(LOCAL_MAXIMUMS.toString()));
-		}
-	}
-	
-	public static class AggregateMax extends Reducer <Text, Text, Text, Text> {
-		@Override
-		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
-			if (key.toString().equals("MAXIMUMS")) {
-				int maximums[] = new int[0];
-				for (Text val : vals) {
-					if (maximums.length == 0) {
-						maximums = new int[val.toString().split(",").length];
-						Arrays.fill(maximums, -1);
-					}
-					for (int i=0; i<maximums.length; i++) {
-						int a = Integer.parseInt(val.toString().split(",")[i]);
-						if (a > maximums[i]) {
-							maximums[i] = a;
-						}
-					}
-				}
-				context.getConfiguration().set("maximums", Arrays.toString(maximums));
-			} else {
-				for (Text val : vals) {
-					context.write(key, val);
-				}
-			}
-		}
-	}
-
 	public static class EdgeCreate extends Mapper<LongWritable, Text, Text, Text> {
 
 		ArrayList<String> lines = new ArrayList<String>();
@@ -150,12 +87,14 @@ public class Creator {
 		@Override
 		public void setup(Context context) throws IOException ,InterruptedException {
 			String maximumsString = context.getConfiguration().get("maximums");
-			double a[] = new double[maximumsString.split(",").length];
-			String maxSplit[] = maximumsString.substring(1, a.length-1).split(",");
-			for (int i=0; i<a.length; i++) {
-				a[i] = Double.parseDouble(maxSplit[i]);	
+			if (maximumsString != null) {
+				double a[] = new double[maximumsString.split(",").length];
+				String maxSplit[] = maximumsString.substring(1, a.length-1).split(",");
+				for (int i=0; i<a.length; i++) {
+					a[i] = Double.parseDouble(maxSplit[i]);	
+				}
+				sm.setMaximums(a);
 			}
-			sm.setMaximums(a);
 		};
 
   		@Override
@@ -178,7 +117,6 @@ public class Creator {
   					context.write(new IntWritable(a),new Text(Integer.toString(b) + " " + Double.toString(weight)));
   				} catch (MaximumsNotSetException e) {
   					e.printStackTrace();
-  					//TODO: set maximums here and retry
   				}
    	  			
   	  		}
@@ -189,8 +127,8 @@ public class Creator {
 		@Override
 		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
 			String values[] = val.toString().split(" |\t");
-			context.write(new Text(values[0]), val);
-			context.write(new Text(values[1]), val);
+			context.write(new Text(values[0]), new Text(values[1] + " " + values[2]));
+			context.write(new Text(values[1]), new Text(values[0] + " " + values[2]));
 		}
 	}
 	
@@ -224,7 +162,7 @@ public class Creator {
 			
 			//build the priority queue
 			for (Text val : vals) {
-				String stringVal[] = val.toString().split(" ");
+				String stringVal[] = val.toString().split(" |\t");
 				pq.offer(new Datum(Integer.parseInt(stringVal[0]), Double.parseDouble(stringVal[1])));
 				if (pq.size() > kVal) {
 					pq.remove();
@@ -232,7 +170,11 @@ public class Creator {
 			}
 			
 			for (Datum d : pq) {
-				context.write(new Text(key.toString() + " " + Integer.toString(d.v)), new Text(Double.toString(d.w)));
+				if (Integer.parseInt(key.toString()) < d.v) {
+					context.write(new Text(key.toString() + " " + Integer.toString(d.v)), new Text(Double.toString(d.w)));
+				} else {
+					context.write(new Text(Integer.toString(d.v) + " " + key.toString()), new Text(Double.toString(d.w)));
+				}
 			}
 		}
 	}
@@ -256,22 +198,9 @@ public class Creator {
 
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
-		conf.set("mapreduce.input.fileinputformat.split.maxsize", "2500");
+		conf.set("mapreduce.input.fileinputformat.split.maxsize", "25000");
 		conf.set("mapreduce.job.reduces", "50");
-		
-		/* PREPROCESS */
-		Job job1 = Job.getInstance(conf, "preprocess");
-		
-		job1.setJarByClass(Creator.class);
-		job1.setMapperClass(Preprocess.class);
-		job1.setReducerClass(AggregateMax.class);
-		job1.setMapOutputKeyClass(Text.class);
-		job1.setMapOutputValueClass(Text.class);
-		job1.setOutputKeyClass(Text.class);
-		job1.setOutputValueClass(Text.class);
-		
-		FileInputFormat.addInputPath(job1, new Path(args[0]));
-		FileOutputFormat.setOutputPath(job1, new Path(INTERMEDIATE_PATH));
+		conf.set("kVal", args[3]);
 		
 		/* GRAPH CREATION */
 		Job job2 = Job.getInstance(conf, "edge creation");
@@ -284,12 +213,41 @@ public class Creator {
 	  	job2.setOutputKeyClass(IntWritable.class);
 	  	job2.setOutputValueClass(Text.class);
 	  		  	
-	  	FileInputFormat.addInputPath(job2, new Path(INTERMEDIATE_PATH));
-	  	FileOutputFormat.setOutputPath(job2, new Path(args[1]));
+	  	FileInputFormat.addInputPath(job2, new Path(args[0]));
+	  	FileOutputFormat.setOutputPath(job2, new Path(INTERMEDIATE_PATH+"1"));
 	  	job2.addCacheFile(new URI("hdfs://localhost:9000/user/hduser/" + args[2]));
 	  	
 	  	job2.waitForCompletion(true); 	
+	  		  	
+	  	/* KNNG TRIMMING */
 	  	
-	  	//TODO: run 2 more jobs using the last 4 internal classes in order to trim the graph to a kNNG
+	  	Job job3 = Job.getInstance(conf, "trimming 1");
+	  	
+		job3.setJarByClass(Creator.class);
+		job3.setMapperClass(BinByVertex.class);
+	  	job3.setReducerClass(kNNFilter.class);
+	  	job3.setMapOutputKeyClass(Text.class);
+	  	job3.setMapOutputValueClass(Text.class);
+	  	job3.setOutputKeyClass(Text.class);
+	  	job3.setOutputValueClass(Text.class);
+
+	  	FileInputFormat.addInputPath(job3, new Path(INTERMEDIATE_PATH+"1"));
+	  	FileOutputFormat.setOutputPath(job3, new Path(INTERMEDIATE_PATH+"2"));
+
+	  	job3.waitForCompletion(true);
+	  	
+	  	Job job4 = Job.getInstance(conf, "trimming 2");
+	  	job4.setJarByClass(Creator.class);
+		job4.setMapperClass(IdentityMap.class);
+	  	job4.setReducerClass(RemoveDuplicateEdges.class);
+	  	job4.setMapOutputKeyClass(Text.class);
+	  	job4.setMapOutputValueClass(Text.class);
+	  	job4.setOutputKeyClass(Text.class);
+	  	job4.setOutputValueClass(Text.class);
+	  	
+	  	FileInputFormat.addInputPath(job4, new Path(INTERMEDIATE_PATH+"2"));
+	  	FileOutputFormat.setOutputPath(job4, new Path(args[1]));
+
+	  	job4.waitForCompletion(true);
 	}
 }

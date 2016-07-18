@@ -10,24 +10,20 @@ outfile = open(outputname, 'w')
 NUMBER_OF_SAMPLES = int(size)
 DIMENSIONS = [0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41]
 
-previousIndexes = []
 attackTypes = {}
 maximums = [0 for _ in xrange(len(DIMENSIONS))]
 k = 0
-while len(previousIndexes)<NUMBER_OF_SAMPLES:
+while k<NUMBER_OF_SAMPLES:
 	if k%1000 == 0:
 		print k
 	k+=1
 	index = randint(0,len(lines)-1)
-	if index in previousIndexes:
-		continue
-	i = len(previousIndexes)
-	previousIndexes.append(index)
+	item = lines.pop(index)
 
-	if ' ' in lines[index]:
-		line = lines[index].split(' ')[1]
+	if ' ' in item:
+		line = item.split(' ')[1]
 	else:
-		line = lines[index]
+		line = item
 
 	datum = line.split(',')
 	for j in range(len(datum))[::-1]:
@@ -44,7 +40,7 @@ while len(previousIndexes)<NUMBER_OF_SAMPLES:
 			datum.pop(j)
 
 
-	outfile.write(str(i) + ' ' + ','.join(datum) + '\n')
+	outfile.write(str(k) + ' ' + ','.join(datum) + '\n')
 
 outfile.close()
 print
