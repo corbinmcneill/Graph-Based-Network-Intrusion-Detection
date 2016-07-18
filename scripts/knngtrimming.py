@@ -8,7 +8,9 @@ lines = [line for line in open(inputfilename, 'r')]
 output = open(outputfilename, 'w')
 
 weights = {}
-for line in lines:
+for k,line in enumerate(lines):
+	if (k%1000 == 0):
+		print "Part 1:", k
 	i, j, weight = line.split()
 	i = int(i)
 	j = int(j)
@@ -25,6 +27,8 @@ for line in lines:
 
 alreadyAdded = []
 for a in weights:
+	if (k%100==0):
+		print "Part 2:", k
 	for b in sorted(weights[a].iterkeys(), key=(lambda key: weights[a][key]))[::-1][:knng]:
 		if a < b:
 			v = [a,b]

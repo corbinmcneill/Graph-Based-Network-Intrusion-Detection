@@ -2,22 +2,22 @@ from sys import argv
 from random import randint
 from string import strip
 
-NUMBER_OF_SAMPLES = 10000
-DIMENSIONS = [0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41]
 
-
-if len(argv) != 3:
-	print "Invalied parameters. Please run this script as \n\tpython preprocess.py <inputfile> <outputfile>\n\nClosing script now."
-	exit(1)
-
-filename, inputname, outputname = argv
+filename, inputname, outputname, size = argv
 lines = [line for line in open(inputname, 'r')]
 outfile = open(outputname, 'w')
+
+NUMBER_OF_SAMPLES = int(size)
+DIMENSIONS = [0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41]
 
 previousIndexes = []
 attackTypes = {}
 maximums = [0 for _ in xrange(len(DIMENSIONS))]
+k = 0
 while len(previousIndexes)<NUMBER_OF_SAMPLES:
+	if k%1000 == 0:
+		print k
+	k+=1
 	index = randint(0,len(lines)-1)
 	if index in previousIndexes:
 		continue
