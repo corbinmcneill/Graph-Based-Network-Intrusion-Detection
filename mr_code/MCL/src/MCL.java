@@ -1,6 +1,7 @@
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.fs.Path;
@@ -12,8 +13,10 @@ import org.apache.hadoop.mapreduce.Partitioner;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
 import java.util.HashMap;
 import java.util.Set;
+
 import org.jblas.DoubleMatrix;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
@@ -242,16 +245,13 @@ public class MCL extends Configured implements Tool {
 		protected void map(LongWritable key, Text value, Context context) throws java.io.IOException, InterruptedException {
 
 			String nodes[];
-            if (value.toString().contains(" "))
-                nodes = value.toString().split(" ");
-            else
-                nodes = value.toString().split("\t");
+			nodes = value.toString().split(" |\t");
 
 			// To send each edge to the appropriate reducer, emit
 			// a record with one of the vertices as the key and the other as the
 			// value.
-			context.write(new Text(nodes[0]), new Text(nodes[1]));
-			context.write(new Text(nodes[1]), new Text(nodes[0]));
+			context.write(new Text(nodes[0]), new Text(nodes[1] + " " + (nodes.length>2? nodes[2]:"1")));
+			context.write(new Text(nodes[1]), new Text(nodes[0] + " " + (nodes.length>2? nodes[2]:"1")));
 
 			// Since the graph is undirected, emit 2 records.
 
@@ -270,7 +270,8 @@ public class MCL extends Configured implements Tool {
             // Use an arraylist to store all the values. This provides us an
             // easy way to count the total sum for this column, which will be
             // needed to normalize all the values.
-            String k = key.toString();
+            
+			/*String k = key.toString();
             ArrayList<String> vals = new ArrayList<String>();
             for (Text t : values) {
                 String s = t.toString();
@@ -278,12 +279,24 @@ public class MCL extends Configured implements Tool {
                     // We will manually add the self-edge later.
                     vals.add(t.toString());
                 }
-            }
+            }*/
+			ArrayList<String> adjacentV = new ArrayList<String>();
+			ArrayList<Double> adjacentW = new ArrayList<Double>();
+			double weightSum = 0;
+			for (Text t : values) {
+				String s[] = t.toString().split(" ");
+				double d = Double.parseDouble(s[1]);
+				adjacentV.add(s[0]);
+				adjacentW.add(d);
+				weightSum += d;
+			}
+			
+			weightSum += weightSum/adjacentV.size();
 
 			// Now that we have the array representing this col, we can output that
 			// as a single file:
-            String normalizedVal =  String.format("%.10f", (1.0 / (vals.size() + 1)));
-            String column = k + ":" + normalizedVal + ",";     // The self-edge
+            // String normalizedVal =  String.format("%.10f", (1.0 / (vals.size() + 1)));
+            String column = key.toString() + ":" + weightSum/(adjacentV.size() + 1) + ",";     // The self-edge
             // Using 10 digits of precision in the doubles.
 
             // We don't deal with weighted edges, so each entry in the matrix
@@ -294,14 +307,14 @@ public class MCL extends Configured implements Tool {
 			// where a,b,c,... are the indices of the row; 'X' is the entry in
             // the matrix in that cell.
 
-            for (int i = 0; i < vals.size(); i++) {
-                column += vals.get(i) + ":" + normalizedVal + ",";
+            for (int i = 0; i < adjacentV.size(); i++) {
+                column += adjacentV.get(i) + ":" + adjacentW.get(i)/weightSum + ",";
             }
 
 			// Remove the extra comma at the end:
 			column = column.substring(0, column.length() - 1);
 
-			context.write(new Text(k), new Text(column));
+			context.write(key, new Text(column));
 		}
 	}
 
@@ -599,15 +612,11 @@ public class MCL extends Configured implements Tool {
 
 		protected void reduce(Text key, Iterable<Text> values, Context context) throws java.io.IOException, InterruptedException {
 
-            // We use a hashtable to store the values of the matrix and their
-            // column indices. It will be keyed by the matrix entry, and valued
-            // by a list of column indices.
-
             // The decimal value will be rounded and then truncated to 5 decimal
             // places in order to facilitate proper comparison.
 
-            HashMap<String, ArrayList<Long>> hashtable = new HashMap<String, ArrayList<Long>>();
 
+			ArrayList<Long> others = new ArrayList<Long>();
             String tmp[];
             String val;
             long col;
@@ -616,8 +625,13 @@ public class MCL extends Configured implements Tool {
                 col = Long.parseLong(tmp[0]);
                 val = tmp[1];
 
-                String d = "" + round(Double.parseDouble(val), 5); // rounds to 5 decimal places
-                if (hashtable.containsKey(d)) {
+                double d = round(Double.parseDouble(val), 3); // rounds to 5 decimal places
+                
+                if (d>0) {
+                	others.add(col);
+                }
+                
+                /*if (hashtable.containsKey(d)) {
                     // update the list in the hashtable:
                     ArrayList<Long> list = hashtable.get(d);
                     if (!list.contains(col))
@@ -630,25 +644,19 @@ public class MCL extends Configured implements Tool {
                     if (!list.contains(col))
                         list.add(col);
                     hashtable.put(d, list);
-                }
+                }*/
             }
 
             // At this point, we have picked up all the clusters from this row.
             // Send them to the output:
-            Set<String> keySet = hashtable.keySet();
-            for (String k : keySet) {
-                ArrayList<Long> list = hashtable.get(k);
-                // Output all the numbers in this list.
-                // They comprise a single cluster.
+            Collections.sort(others);
 
-                Collections.sort(list);
-
-                String cluster = "";
-                for (int i = 0; i < list.size() - 1; i++)
-                    cluster += list.get(i) + ", ";
-                cluster += list.get(list.size() - 1);
-                context.write(new Text("Cluster:"), new Text(cluster));
+            String cluster = "";
+            for (int i = 0; i < others.size() - 1; i++) {
+                cluster += others.get(i) + ", ";
             }
+            cluster += others.get(others.size() - 1);
+            context.write(new Text("Cluster:"), new Text(cluster));
 
 		}
 
@@ -689,7 +697,7 @@ public class MCL extends Configured implements Tool {
             // To help us with identification of individual clusters, we use
             // the standard Object.getHashCode() function to compute an integer
             // value for each cluster.
-            int hashCode = key.toString().hashCode();
+            long hashCode = key.toString().hashCode();
             String clusterName = "Cluster ID:" + hashCode;
             context.write(new Text(clusterName), new Text(key.toString()));
 		}
