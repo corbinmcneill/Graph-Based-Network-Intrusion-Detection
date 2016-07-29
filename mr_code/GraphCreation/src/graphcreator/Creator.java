@@ -53,7 +53,11 @@ import SimilarityMeasure.SimilarityMeasure;
  * exceed 25,000 is unknown.
  */
 
-
+/**
+ * This MapReduce Creator class can create both fully complete graphs and k-Nearest Neighbor
+ * Graphs (kNNGs).
+ * @author mcneill
+ */
 public class Creator {
 	/**
 	 * The base path to use for intermediate hdfs storage
@@ -165,7 +169,7 @@ public class Creator {
   	}
 	
 	/**
-	 * This code bins edges by both vertices
+	 * This mapper bins edges by both vertices
 	 * @author mcneill
 	 */
 	public static class BinByVertex extends Mapper<LongWritable, Text, Text, Text> {
@@ -177,6 +181,11 @@ public class Creator {
 		}
 	}
 	
+	/**
+	 * This reducer takes edges binned by vertex and emits only the k highest weighted edges, where k is the 
+	 * value of the property "kVal"
+	 * @author mcneill
+	 */
 	public static class kNNFilter extends Reducer<Text, Text, Text, Text> {
 				
 		@Override
@@ -216,6 +225,10 @@ public class Creator {
 		}
 	}
 	
+	/**
+	 * This is the identity map. It passes input as output, unaffected.
+	 * @author mcneill
+	 */
 	public static class IdentityMap extends Mapper<LongWritable, Text, Text, Text> {
 		@Override
 		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
@@ -224,6 +237,10 @@ public class Creator {
 		}
 	}
 	
+	/**
+	 * This reducer takes weighted edges, binned by the sorted vertex values of the edge and removes duplicates.
+	 * @author mcneill
+	 */
 	public static class RemoveDuplicateEdges extends Reducer<Text, Text, Text, Text> {
 		
 		@Override
@@ -235,11 +252,25 @@ public class Creator {
 
 	public static void main(String[] args) throws Exception {
 		
+		/*
+		 * args[0] is the hdfs input path
+		 * args[1] is the hdfs output path
+		 * args[2] is the location of the single input file
+		 * args[3] is the k value for kNNG creation, -1 if a full graph is to be used
+		 */
+		
+		/**
+		 * conf1 gives a smaller amount of input to each MapReduce job, making it optimal for MR jobs where output
+		 * or intermediate data volume is significantly larger than input data volume
+		 */
 		Configuration conf1 = new Configuration();
 		conf1.set("mapreduce.input.fileinputformat.split.maxsize", "5000");
 		conf1.set("mapreduce.job.split.metainfo.maxsize", "-1");
 		conf1.set("mapreduce.job.reduces", "100");
 		
+		/**
+		 * conf2 is optimal for MapReduce jobs where data volume is roughly consistent throughout the MR job.
+		 */
 		Configuration conf2 = new Configuration();
 		conf2.set("mapreduce.input.fileinputformat.split.maxsize", "5000000");
 		conf2.set("mapreduce.job.split.metainfo.maxsize", "-1");
@@ -268,9 +299,10 @@ public class Creator {
 	  	
 	  	job1.waitForCompletion(true);
 	  	
+	  	/*
+	  	 * Only run KNNG trimming MapReduce jobs if kNNG is desired, as oppused to a complete graph.
+	  	 */
 	  	if (!args[3].equals("-1")) {
-	  		  	
-	  		/* KNNG TRIMMING */
 	  	
 	  		Job job2 = Job.getInstance(conf2, "trimming 1");
 	  	
