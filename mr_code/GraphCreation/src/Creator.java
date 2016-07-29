@@ -17,12 +17,11 @@
  */
 
 import java.io.BufferedReader;
+
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.PriorityQueue;
 import java.util.StringTokenizer;
 
 import org.apache.hadoop.conf.Configuration;
@@ -41,10 +40,22 @@ import SimilarityMeasure.EuclideanSquared;
 import SimilarityMeasure.MaximumsNotSetException;
 import SimilarityMeasure.SimilarityMeasure;
 
+/* USAGE WARNING:
+ * 
+ * "java.lang.OutOfMemoryError: Java heap space" can frequently occur in this code 
+ * in (at least) two circumstances:
+ * 
+ * 1) Not enough mappers. This causes sort and shuffle algorithms to exceed available JVM space
+ * 2) Too many mappers. This causes internal fragmentation among hdfs blocks.
+ * 
+ * The below Hadoop configurations have scaled well up to 25,000 records. Behavior when records
+ * exceed 25,000 is unknown.
+ */
+
 
 public class Creator {
 	
-	private static final String INTERMEDIATE_PATH = "intermediate";
+	private static final String INTERMEDIATE_PATH = "/intermediate";
 	
 	public static class EdgeCreate extends Mapper<LongWritable, Text, Text, Text> {
 
@@ -133,47 +144,40 @@ public class Creator {
 	}
 	
 	public static class kNNFilter extends Reducer<Text, Text, Text, Text> {
-		
-		public static class Datum {
-			public int v;
-			public double w;
-			
-			public Datum(int vertex, double weight) {
-				this.v = vertex;
-				this.w = weight;
-			}
-		}
-		
+				
 		@Override
 		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
 			int kVal = Integer.parseInt(context.getConfiguration().get("kVal"));
-			PriorityQueue<Creator.kNNFilter.Datum> pq = new PriorityQueue<Creator.kNNFilter.Datum>(kVal + 1, new Comparator<Creator.kNNFilter.Datum>() {
-				@Override
-				public int compare(Datum o1, Datum o2) {
-					if (o1.w > o2.w) {
-						return 1;
-					} else if (o1.w < o2.w) {
-						return -1;
-					} else {
-						return 0;
+			
+			int kEdgesV[] = new int[kVal];
+			double kEdgesW[] = new double[kVal];
+			int minPos = 0;
+			double minWeight = 0;
+			
+			for (Text val : vals) {
+				String split[] = val.toString().split(" ");
+				int v = Integer.parseInt(split[0]);
+				double w = Double.parseDouble(split[1]);
+				
+				if (w > minWeight) {
+					kEdgesV[minPos] = v;
+					kEdgesW[minPos] = w;
+					
+					minWeight = Double.MAX_VALUE;
+					for (int i=0; i<kVal; i++) {
+						if (kEdgesW[i] < minWeight) {
+							minPos = i;
+							minWeight = kEdgesW[i];
+						}
 					}
 				}
-			});
-			
-			//build the priority queue
-			for (Text val : vals) {
-				String stringVal[] = val.toString().split(" |\t");
-				pq.offer(new Datum(Integer.parseInt(stringVal[0]), Double.parseDouble(stringVal[1])));
-				if (pq.size() > kVal) {
-					pq.remove();
-				}
 			}
-			
-			for (Datum d : pq) {
-				if (Integer.parseInt(key.toString()) < d.v) {
-					context.write(new Text(key.toString() + " " + Integer.toString(d.v)), new Text(Double.toString(d.w)));
+
+			for (int i=0; i<kVal; i++) {
+				if (Integer.parseInt(key.toString()) < kEdgesV[i]) {
+					context.write(new Text(key.toString() + " " + Integer.toString(kEdgesV[i])), new Text(Double.toString(kEdgesW[i])));
 				} else {
-					context.write(new Text(Integer.toString(d.v) + " " + key.toString()), new Text(Double.toString(d.w)));
+					context.write(new Text(Integer.toString(kEdgesV[i]) + " " + key.toString()), new Text(Double.toString(kEdgesW[i])));
 				}
 			}
 		}
@@ -197,57 +201,72 @@ public class Creator {
 
 
 	public static void main(String[] args) throws Exception {
-		Configuration conf = new Configuration();
-		conf.set("mapreduce.input.fileinputformat.split.maxsize", "25000");
-		conf.set("mapreduce.job.reduces", "50");
-		conf.set("kVal", args[3]);
+		
+		Configuration conf1 = new Configuration();
+		conf1.set("mapreduce.input.fileinputformat.split.maxsize", "5000");
+		conf1.set("mapreduce.job.split.metainfo.maxsize", "-1");
+		conf1.set("mapreduce.job.reduces", "100");
+		
+		Configuration conf2 = new Configuration();
+		conf2.set("mapreduce.input.fileinputformat.split.maxsize", "5000000");
+		conf2.set("mapreduce.job.split.metainfo.maxsize", "-1");
+		conf2.set("mapreduce.job.reduces", "100");
+		conf2.set("kVal", args[3]);
 		
 		/* GRAPH CREATION */
-		Job job2 = Job.getInstance(conf, "edge creation");
+		Job job1 = Job.getInstance(conf1, "edge creation");
 		
-		job2.setJarByClass(Creator.class);
-		job2.setMapperClass(EdgeCreate.class);
-	  	job2.setReducerClass(DistanceCalc.class);
-	  	job2.setMapOutputKeyClass(Text.class);
-	  	job2.setMapOutputValueClass(Text.class);
-	  	job2.setOutputKeyClass(IntWritable.class);
-	  	job2.setOutputValueClass(Text.class);
+		job1.setJarByClass(Creator.class);
+		job1.setMapperClass(EdgeCreate.class);
+	  	job1.setReducerClass(DistanceCalc.class);
+	  	job1.setMapOutputKeyClass(Text.class);
+	  	job1.setMapOutputValueClass(Text.class);
+	  	job1.setOutputKeyClass(IntWritable.class);
+	  	job1.setOutputValueClass(Text.class);
 	  		  	
-	  	FileInputFormat.addInputPath(job2, new Path(args[0]));
-	  	FileOutputFormat.setOutputPath(job2, new Path(INTERMEDIATE_PATH+"1"));
-	  	job2.addCacheFile(new URI("hdfs://localhost:9000/user/hduser/" + args[2]));
+	  	FileInputFormat.addInputPath(job1, new Path(args[0]));
+  		job1.addCacheFile(new URI("hdfs://localhost:9000/user/hduser/" + args[2]));
+
+	  	if (!args[3].equals("-1")) {
+		  	FileOutputFormat.setOutputPath(job1, new Path(args[1] + INTERMEDIATE_PATH+"1"));
+	  	} else {
+		  	FileOutputFormat.setOutputPath(job1, new Path(args[1]+"/output"));
+	  	}
 	  	
-	  	job2.waitForCompletion(true); 	
+	  	job1.waitForCompletion(true);
+	  	
+	  	if (!args[3].equals("-1")) {
 	  		  	
-	  	/* KNNG TRIMMING */
+	  		/* KNNG TRIMMING */
 	  	
-	  	Job job3 = Job.getInstance(conf, "trimming 1");
+	  		Job job2 = Job.getInstance(conf2, "trimming 1");
 	  	
-		job3.setJarByClass(Creator.class);
-		job3.setMapperClass(BinByVertex.class);
-	  	job3.setReducerClass(kNNFilter.class);
-	  	job3.setMapOutputKeyClass(Text.class);
-	  	job3.setMapOutputValueClass(Text.class);
-	  	job3.setOutputKeyClass(Text.class);
-	  	job3.setOutputValueClass(Text.class);
+	  		job2.setJarByClass(Creator.class);
+	  		job2.setMapperClass(BinByVertex.class);
+	  		job2.setReducerClass(kNNFilter.class);
+	  		job2.setMapOutputKeyClass(Text.class);
+	  		job2.setMapOutputValueClass(Text.class);
+	  		job2.setOutputKeyClass(Text.class);
+	  		job2.setOutputValueClass(Text.class);
 
-	  	FileInputFormat.addInputPath(job3, new Path(INTERMEDIATE_PATH+"1"));
-	  	FileOutputFormat.setOutputPath(job3, new Path(INTERMEDIATE_PATH+"2"));
+	  		FileInputFormat.addInputPath(job2, new Path(args[1] + INTERMEDIATE_PATH+"1"));
+	  		FileOutputFormat.setOutputPath(job2, new Path(args[1]+INTERMEDIATE_PATH+"2"));
 
-	  	job3.waitForCompletion(true);
+	  		job2.waitForCompletion(true);
 	  	
-	  	Job job4 = Job.getInstance(conf, "trimming 2");
-	  	job4.setJarByClass(Creator.class);
-		job4.setMapperClass(IdentityMap.class);
-	  	job4.setReducerClass(RemoveDuplicateEdges.class);
-	  	job4.setMapOutputKeyClass(Text.class);
-	  	job4.setMapOutputValueClass(Text.class);
-	  	job4.setOutputKeyClass(Text.class);
-	  	job4.setOutputValueClass(Text.class);
-	  	
-	  	FileInputFormat.addInputPath(job4, new Path(INTERMEDIATE_PATH+"2"));
-	  	FileOutputFormat.setOutputPath(job4, new Path(args[1]));
-
-	  	job4.waitForCompletion(true);
+	 		Job job3 = Job.getInstance(conf2, "trimming 2");
+	 		job3.setJarByClass(Creator.class);
+			job3.setMapperClass(IdentityMap.class);
+			job3.setReducerClass(RemoveDuplicateEdges.class);
+		  	job3.setMapOutputKeyClass(Text.class);
+		  	job3.setMapOutputValueClass(Text.class);
+		  	job3.setOutputKeyClass(Text.class);
+		  	job3.setOutputValueClass(Text.class);
+		  	
+		  	FileInputFormat.addInputPath(job3, new Path(args[1] + INTERMEDIATE_PATH+"2"));
+		  	FileOutputFormat.setOutputPath(job3, new Path(args[1]+"/output"));
+	
+		  	job3.waitForCompletion(true);
+	  	}
 	}
 }
