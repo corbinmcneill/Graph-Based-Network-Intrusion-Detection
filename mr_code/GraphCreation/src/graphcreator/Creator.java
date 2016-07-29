@@ -42,15 +42,30 @@ import SimilarityMeasure.EuclideanSquared;
 import SimilarityMeasure.MaximumsNotSetException;
 import SimilarityMeasure.SimilarityMeasure;
 
-
+/**
+ * The Creator class for creating both fully connected graphs and kNNGs to be used for clustering.
+ * @author mcneill
+ */
 public class Creator {
-	
+	/**
+	 * The base path to use for intermediate hdfs storage
+	 */
 	private static final String INTERMEDIATE_PATH = "intermediate";
 	
+	/**
+	 * The mapper that pairs vertices together to represent edges. 
+	 * @author mcneill
+	 */
 	public static class EdgeCreate extends Mapper<LongWritable, Text, Text, Text> {
 
+		/**
+		 * An ArrayList that holds all the lines of the distributed cache.
+		 */
 		ArrayList<String> lines = new ArrayList<String>();
 		
+		/**
+		 * Populate lines with the distributed cache.
+		 */
 		@Override
 		public void setup(Context context) throws IOException {
 			if (context.getCacheFiles() != null && context.getCacheFiles().length > 0) {
@@ -72,19 +87,36 @@ public class Creator {
 			}
 		}
 	  
+		/**
+		 * Use the input and the distributed cache to pair vertices.
+		 */
 		@Override
 		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
 			int number = Integer.parseInt(val.toString().split(" |\t")[0]);
+			// the initial value of j prohibits duplicates
 			for (int j = number+1; j<lines.size(); j++) {
 				context.write(val, new Text(lines.get(j)));
 			}
 		}
 	}
 
+	/**
+	 * Calculate edge weights for each vertex pair
+	 * @author mcneill
+	 */
 	public static class DistanceCalc extends Reducer<Text, Text, IntWritable, Text> {
 		
+		/**
+		 * The similarity measure to be used for distance calculations.
+		 */
 		SimilarityMeasure sm = new EuclideanSquared();
 		
+		/**
+		 * This setup method reads the maximum values property and passes the maximums to the 
+		 * similarity measure. This code was usually not used (if the maximums property is not 
+		 * set this code has no effect) and maximums were rather implemented with literals in
+		 * relevant similarity measures.
+		 */
 		@Override
 		public void setup(Context context) throws IOException ,InterruptedException {
 			String maximumsString = context.getConfiguration().get("maximums");
@@ -98,6 +130,10 @@ public class Creator {
 			}
 		};
 
+		/**
+		 * This mapper inputs vertex pairs (binned by the lesser vertex) with their associated data vectors and
+		 * outputs the vertex pair with the associated edge weight.
+		 */
   		@Override
   		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
   			
@@ -113,7 +149,7 @@ public class Creator {
   	  			
   				try {
   					double distance = sm.getDistance(stringA, stringB);
-  					double weight = distance==0 ? sm.maxDistance() : Math.exp(-distance);
+  					double weight = Math.exp(-distance);
   					
   					context.write(new IntWritable(a),new Text(Integer.toString(b) + " " + Double.toString(weight)));
   				} catch (MaximumsNotSetException e) {
@@ -124,6 +160,10 @@ public class Creator {
   		}
   	}
 	
+	/**
+	 * This code bins edges by both vertices
+	 * @author mcneill
+	 */
 	public static class BinByVertex extends Mapper<LongWritable, Text, Text, Text> {
 		@Override
 		public void map(LongWritable key, Text val, Context context) throws IOException, InterruptedException {
