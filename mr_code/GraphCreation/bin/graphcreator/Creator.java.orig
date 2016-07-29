@@ -41,6 +41,7 @@ import SimilarityMeasure.EuclideanSquared;
 import SimilarityMeasure.MaximumsNotSetException;
 import SimilarityMeasure.SimilarityMeasure;
 
+<<<<<<< HEAD:mr_code/GraphCreation/src/Creator.java
 /* USAGE WARNING:
  * 
  * "java.lang.OutOfMemoryError: Java heap space" can frequently occur in this code 
@@ -55,11 +56,24 @@ import SimilarityMeasure.SimilarityMeasure;
 
 
 public class Creator {
+	
+	private static final String INTERMEDIATE_PATH = "/intermediate";
+=======
+/**
+ * The Creator class for creating both fully connected graphs and kNNGs to be used for clustering.
+ * @author mcneill
+ */
+public class Creator {
 	/**
 	 * The base path to use for intermediate hdfs storage
-	 */	
-	private static final String INTERMEDIATE_PATH = "/intermediate";
+	 */
+	private static final String INTERMEDIATE_PATH = "intermediate";
+>>>>>>> c86250b79f7fb377cf5f5886d2ab733127b2f779:mr_code/GraphCreation/src/graphcreator/Creator.java
 	
+	/**
+	 * The mapper that pairs vertices together to represent edges. 
+	 * @author mcneill
+	 */
 	public static class EdgeCreate extends Mapper<LongWritable, Text, Text, Text> {
 
 		/**
@@ -153,7 +167,7 @@ public class Creator {
   	  			
   				try {
   					double distance = sm.getDistance(stringA, stringB);
-  					double weight = distance==0 ? sm.maxDistance() : Math.exp(-distance);
+  					double weight = Math.exp(-distance);
   					
   					context.write(new IntWritable(a),new Text(Integer.toString(b) + " " + Double.toString(weight)));
   				} catch (MaximumsNotSetException e) {
@@ -182,6 +196,7 @@ public class Creator {
 		@Override
 		public void reduce(Text key, Iterable<Text> vals, Context context) throws IOException, InterruptedException {
 			int kVal = Integer.parseInt(context.getConfiguration().get("kVal"));
+			
 			int kEdgesV[] = new int[kVal];
 			double kEdgesW[] = new double[kVal];
 			int minPos = 0;
