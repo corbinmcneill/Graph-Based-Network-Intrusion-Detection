@@ -9,7 +9,7 @@ data = {}
 line = datafile.readline()
 while line != '':
 	cleanlinesplit = line.rstrip().split(' ')
-	data[cleanlinesplit[0]] = cleanlinesplit[1].split(',')[-1]
+	data[int(cleanlinesplit[0])-1] = cleanlinesplit[1].split(',')[-1]
 	line = datafile.readline()
 
 for cluster in clusterfile:
@@ -18,7 +18,7 @@ for cluster in clusterfile:
 	clusterSize = len(cluster.split(' '))
 	clusterInfo = {}
 	for point in cluster.split(' '):
-		classification = data[point.rstrip()]
+		classification = data[int(point.rstrip())]
 		if classification in clusterInfo:
 			clusterInfo[classification] += 1
 		else:

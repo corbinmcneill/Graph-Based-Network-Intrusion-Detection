@@ -11,7 +11,7 @@ def badclusterdetection(clustername, dataname, goodclusters):
 	line = datafile.readline()
 	while line != '':
 		cleanlinesplit = line.rstrip().split(' ')
-		data[cleanlinesplit[0]] = cleanlinesplit[1].split(',')[-1]
+		data[int(cleanlinesplit[0])-2] = cleanlinesplit[1].split(',')[-1]
 		line = datafile.readline()
 
 	# read clusters from clusterfile
@@ -32,13 +32,13 @@ def badclusterdetection(clustername, dataname, goodclusters):
 	for i,cluster in enumerate(sorted(clusters, key=len, reverse=True)): 
 		if i < goodclusters:
 			for vertex in cluster:
-				if data[vertex] == "normal.":
+				if data[int(vertex)] == "normal.":
 					tp += 1
 				else:
 					fp += 1
 		else:
 			for vertex in cluster:
-				if data[vertex] == "normal.":
+				if data[int(vertex)] == "normal.":
 					fn += 1
 				else:
 					tn += 1

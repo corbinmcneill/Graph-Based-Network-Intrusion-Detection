@@ -1,9 +1,11 @@
 from sys import argv
+import sys
 
 def find(vertex, disjointSets):
 	for i in xrange(len(disjointSets)):
 		if vertex in disjointSets[i]:
 			return i
+	print vertex
 	assert False
 
 def join(set1, set2, disjointSets):
@@ -22,11 +24,15 @@ def componentcount(inputfilename, size):
 	disjointSets = [[i] for i in xrange(int(size))]
 
 	while len(lines) > 0:
+		if len(lines)%1000 == 0:
+			sys.stderr.write(str(len(lines)) + '\n')
+			sys.stderr.flush()
+
 		line = lines.pop(0);
 
 		vertex1, vertex2, weight = line.split(',')
-		vertex1 = int(vertex1)
-		vertex2 = int(vertex2)
+		vertex1 = int(vertex1) -2
+		vertex2 = int(vertex2) -2
 
 		disjointSets = join(find(vertex1, disjointSets), find(vertex2, disjointSets), disjointSets)
 

@@ -12,8 +12,8 @@ DIMENSIONS = [0, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 41]
 
 attackTypes = {}
 maximums = [0 for _ in xrange(len(DIMENSIONS))]
-k = 0
-while k<NUMBER_OF_SAMPLES:
+k = 1
+while k<=NUMBER_OF_SAMPLES:
 	if k%1000 == 0:
 		print k
 	k+=1
