@@ -43,7 +43,7 @@ The rest of the algorithm is based on the original MCL algorithm by Stijn van Do
 public class MCL extends Configured implements Tool {
 
 	// ------------  THESE ARE SOME IMPORTANT GLOBAL VARIABLES! -------------
-    static int t = 3000;                       // SUBMATRIX SIZE
+    static int t = 3000;                // SUBMATRIX SIZE
     static int R;                       // NUMBER OF REDUCERS
 
     public static void main(String args[]) throws Exception {
@@ -73,7 +73,8 @@ public class MCL extends Configured implements Tool {
 
 
         // Parse the command line variables:
-        // args[0] = input location, args[1] = output location
+        // args[0] = input location, 
+        // args[1] = output location
         // args[2] = number of runs
         // args[3] = number of vertices
         // args[4] = number of reducers (I set this to the number of my processor's cores)
@@ -90,9 +91,7 @@ public class MCL extends Configured implements Tool {
         Configuration conf = this.getConf();
         // Store some of the command line variables in the conf object:
         conf.set("t", t + "");
-        conf.set("n", n + "");
         conf.set("p", p + "");
-        conf.set("R", R + "");
         conf.set("INFLATION_PARAMETER", INFLATION_PARAMETER + "");
 
 
