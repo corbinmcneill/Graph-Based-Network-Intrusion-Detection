@@ -1,5 +1,10 @@
 package SimilarityMeasure;
 
+
+/**
+ * A similarity measure based off of the euclidean difference between two vectors squared.
+ * @author mcneill
+ */
 public class EuclideanSquared implements SimilarityMeasure {
 	private static double MAX_VALUES[] = new double[] {22174, 0, 0, 6291668, 2881112, 30, 1, 49, 1, 1, 145, 12, 1, 2, 1, 1, 1};
 	private static double MAX_DISTANCE = 0;
