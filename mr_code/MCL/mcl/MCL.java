@@ -19,7 +19,6 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import java.util.HashMap;
 import java.util.Set;
 
-import org.jblas.DoubleMatrix;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 import org.apache.hadoop.conf.Configured;
@@ -407,10 +406,10 @@ public class MCL extends Configured implements Tool {
     static class Reduce2 extends Reducer<Text, Text, Text, Text> {
 
         // These may need to be static!!!
-        // double A[][] = new double[t][t];
-        // double B[][] = new double[t][t];
-        DoubleMatrix A = new DoubleMatrix(t, t);
-        DoubleMatrix B = new DoubleMatrix(t, t);
+        double A[][] = new double[t][t];
+        double B[][] = new double[t][t];
+        //DoubleMatrix A = new DoubleMatrix(t, t);
+        //DoubleMatrix B = new DoubleMatrix(t, t);
 
         long skb = -1;
         long sjb = -1;
@@ -428,7 +427,7 @@ public class MCL extends Configured implements Tool {
             if (ib == -1) {
                 skb = kb;
                 sjb = jb;
-                B.fill(0.0);
+                // B.fill(0.0);
                 // for each value = (k, j, v) in valueList: do B(k,j) = v
                 for (Text val : values) {
                     String valstr[] = val.toString().split(":");
@@ -436,15 +435,15 @@ public class MCL extends Configured implements Tool {
                     int j = Integer.parseInt(valstr[1]);
                     double v = Double.parseDouble(valstr[2]);
 
-                    // B[k][j] = v;
-                    B.put(k, j, v);
+                    B[k][j] = v;
+                    // B.put(k, j, v);
                 }
             }
 
             else {
                 if (kb != skb || jb != sjb)
                     return;
-                A.fill(0.0);
+                // A.fill(0.0);
                 // for each value = (i, k, v) in valueList: do A(i,k) = v
                 for (Text val : values) {
                     String valstr[] = val.toString().split(":");
@@ -452,8 +451,8 @@ public class MCL extends Configured implements Tool {
                     int k = Integer.parseInt(valstr[1]);
                     double v = Double.parseDouble(valstr[2]);
 
-                    // A[i][k] = v;
-                    A.put(i, k, v);
+                    A[i][k] = v;
+                    // A.put(i, k, v);
                 }
 
                 // Now multiply the blocks and emit the results:
@@ -461,7 +460,7 @@ public class MCL extends Configured implements Tool {
                 long jbase = jb * t;
 
                 // THIS BLOCK OF CODE WAS FOR THE OLD WAY OF DOING MULTIPLICATION
-                /**
+                
                 for (int i = 0; i < A.length; i++) {
                     for (int j = 0; j < A.length; j++) {
                         double sum = 0.0;
@@ -475,12 +474,12 @@ public class MCL extends Configured implements Tool {
                         }
                     }
                 }
-                */
+                
 
                 // NEW WAY OF DOING MULTIPLICATION USING JBLAS: CREATE A
                 // TEMPORARY MATRIX TO HOLD THE RESULT OF A*B AND THEN CALL
                 // A LIBRARY FUNCTION TO DO THE MULTIPLICATION.
-                DoubleMatrix tempMatrix = A.mmul(B);
+                /*DoubleMatrix tempMatrix = A.mmul(B);
                 for (int i = 0; i < t; i++) {
                     for (int j = 0; j < t; j++) {
                         double d = tempMatrix.get(i, j);
@@ -489,7 +488,7 @@ public class MCL extends Configured implements Tool {
                             context.write(new Text((ibase + i) + ":" + (jbase + j)), new Text(sumString));
                         }
                     }
-                }
+                }*/
             }
         }
     }
