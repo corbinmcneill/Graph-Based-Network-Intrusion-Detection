@@ -36,7 +36,7 @@ Strategy 3.
 The rest of the algorithm is based on the original MCL algorithm by Stijn van Dongen:
 (http://micans.org/mcl/index.html).
 
-@author Chris Joseph and Stephen Krucelyak
+@author Chris Joseph and Stephen Krucelyak and Corbin McNeill
 */
 
 public class MCL extends Configured implements Tool {
@@ -108,9 +108,9 @@ public class MCL extends Configured implements Tool {
             job1.setOutputKeyClass(Text.class);
             job1.setOutputValueClass(Text.class);
 
-
+            /* TODO: fix this input path; it won't work for multiple runs */
             FileInputFormat.addInputPath(job1, new Path(args[0]));
-            FileOutputFormat.setOutputPath(job1, new Path(args[1] + "-MR1-run" + i));
+            FileOutputFormat.setOutputPath(job1, new Path(args[1] + "/MR1-run" + i));
 
             if (runStage1)
                 job1.waitForCompletion(true);
@@ -134,16 +134,16 @@ public class MCL extends Configured implements Tool {
 
                 if (counter == 0)
                     // MR2's input will be the output of MR1.
-                    FileInputFormat.addInputPath(job2, new Path(args[1] + "-MR1-run" + i));
+                    FileInputFormat.addInputPath(job2, new Path(args[1] + "/MR1-run" + i));
                 else
                     // MR2's input will be the output of MR3 from the previous iteration.
-                    FileInputFormat.addInputPath(job2, new Path(args[1] + "-MR3-run" + i + "-cycle" + (counter - 1)));
+                    FileInputFormat.addInputPath(job2, new Path(args[1] + "/MR3-run" + i + "-cycle" + (counter - 1)));
 
-                FileOutputFormat.setOutputPath(job2, new Path(args[1] + "-MR2-run" + i + "-cycle" + counter));
+                FileOutputFormat.setOutputPath(job2, new Path(args[1] + "/MR2-run" + i + "-cycle" + counter));
 
                 // Set the external JBLAS jar:
-                Path pfad = new Path("ClassFiles/jblas.jar");
-                job2.addCacheFile(pfad.toUri());
+                //Path pfad = new Path("ClassFiles/jblas.jar");
+                //job2.addCacheFile(pfad.toUri());
 
                 if (runStage2)
                     job2.waitForCompletion(true);
@@ -160,8 +160,8 @@ public class MCL extends Configured implements Tool {
                 job3.setOutputKeyClass(Text.class);
                 job3.setOutputValueClass(Text.class);
 
-                FileInputFormat.addInputPath(job3, new Path(args[1] + "-MR2-run" + i + "-cycle" + counter));
-                FileOutputFormat.setOutputPath(job3, new Path(args[1] + "-MR3-run" + i + "-cycle" + counter));
+                FileInputFormat.addInputPath(job3, new Path(args[1] + "/MR2-run" + i + "-cycle" + counter));
+                FileOutputFormat.setOutputPath(job3, new Path(args[1] + "/MR3-run" + i + "-cycle" + counter));
 
                 if (runStage3)
                     job3.waitForCompletion(true);
@@ -181,8 +181,8 @@ public class MCL extends Configured implements Tool {
             job4.setOutputKeyClass(Text.class);
             job4.setOutputValueClass(Text.class);
 
-            FileInputFormat.addInputPath(job4, new Path(args[1] + "-MR3-run" + i + "-cycle" + (counter-1)));
-            FileOutputFormat.setOutputPath(job4, new Path(args[1] + "-MR4-run" + i));
+            FileInputFormat.addInputPath(job4, new Path(args[1] + "/MR3-run" + i + "-cycle" + (counter-1)));
+            FileOutputFormat.setOutputPath(job4, new Path(args[1] + "/MR4-run" + i));
 
             if (runStage4)
                 job4.waitForCompletion(true);
@@ -199,8 +199,8 @@ public class MCL extends Configured implements Tool {
             job5.setOutputKeyClass(Text.class);
             job5.setOutputValueClass(Text.class);
 
-            FileInputFormat.addInputPath(job5, new Path(args[1] + "-MR4-run" + i));
-            FileOutputFormat.setOutputPath(job5, new Path(args[1] + "-MR5-run" + i));
+            FileInputFormat.addInputPath(job5, new Path(args[1] + "/MR4-run" + i));
+            FileOutputFormat.setOutputPath(job5, new Path(args[1] + "/MR5-run" + i));
 
             if (runStage5)
                 job5.waitForCompletion(true);
@@ -217,9 +217,9 @@ public class MCL extends Configured implements Tool {
             job6.setOutputKeyClass(Text.class);
             job6.setOutputValueClass(Text.class);
 
-            FileInputFormat.addInputPath(job6, new Path(args[1] + "-MR5-run" + i));
+            FileInputFormat.addInputPath(job6, new Path(args[1] + "/MR5-run" + i));
             FileInputFormat.addInputPath(job6, new Path(args[0]));
-            FileOutputFormat.setOutputPath(job6, new Path(args[1] + "-MR6-run" + i));
+            FileOutputFormat.setOutputPath(job6, new Path(args[1] + "/MR6-run" + i));
 
             if (runStage6)
                 job6.waitForCompletion(true);
@@ -625,7 +625,7 @@ public class MCL extends Configured implements Tool {
                 col = Long.parseLong(tmp[0]);
                 val = tmp[1];
 
-                double d = round(Double.parseDouble(val), 3); // rounds to 5 decimal places
+                double d = round(Double.parseDouble(val), 5);
                 
                 if (d>0) {
                 	others.add(col);
@@ -652,12 +652,12 @@ public class MCL extends Configured implements Tool {
             Collections.sort(others);
 
             String cluster = "";
-            for (int i = 0; i < others.size() - 1; i++) {
+            for (int i = 0; i < others.size(); i++) {
                 cluster += others.get(i) + ", ";
             }
-            cluster += others.get(others.size() - 1);
-            context.write(new Text("Cluster:"), new Text(cluster));
-
+            if (!cluster.equals("")) {
+            	context.write(new Text("Cluster:"), new Text(cluster.substring(0, cluster.length()-2)));
+            }
 		}
 
         /**
@@ -739,7 +739,7 @@ public class MCL extends Configured implements Tool {
                 }
             }
 
-            else {
+            else { //TODO: this code shouldn't ever be exectuted. Test that!
                 // Simply send the edge to a reducer
                 String str[];
                 if (s.contains(" "))
@@ -779,7 +779,7 @@ public class MCL extends Configured implements Tool {
         protected void reduce(Text key, Iterable<Text> values, Context context) throws java.io.IOException, InterruptedException {
 
             ArrayList<String> strings = new ArrayList<String>();
-            for (Text t:values)
+            for (Text t:values) //TODO: fix this
                 strings.add(t.toString());
 
             if (strings.size() == 2) {
