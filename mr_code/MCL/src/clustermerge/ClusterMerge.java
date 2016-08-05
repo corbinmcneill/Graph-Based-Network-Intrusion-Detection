@@ -21,7 +21,7 @@ public class ClusterMerge extends Configured implements Tool {
 	@Override
 	public int run(String[] args) throws Exception {
 		Configuration conf = this.getConf();
-		conf.set("conflict", "none");
+		conf.set("collision", "none");
 		
 		for (int i=0; ; i++) {
 		
@@ -108,7 +108,7 @@ public class ClusterMerge extends Configured implements Tool {
 		
 		@Override
 		protected void setup(Context context) {
-			String collision[] = context.getConfiguration().get("conflict").split(",");
+			String collision[] = context.getConfiguration().get("collision").split(",");
 			fromZone = collision[0];
 			toZone = collision[1];
 		}
