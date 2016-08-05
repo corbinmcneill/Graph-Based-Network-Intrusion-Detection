@@ -148,7 +148,6 @@ public class MCL extends Configured implements Tool {
                 if (runStage2)
                     job2.waitForCompletion(true);
 
-
                 // ---------------------- THIRD STAGE ---------------------------
                 Job job3 = Job.getInstance(conf, "Job 3 - Cycle " + counter + " - Run " + i);
                 job3.setJarByClass(MCL.class);
@@ -265,6 +264,8 @@ public class MCL extends Configured implements Tool {
 	*/
 	static class Reduce1 extends Reducer<Text, Text, Text, Text> {
 
+		private double test = 0;
+
 		protected void reduce(Text key, Iterable<Text> values, Context context) throws java.io.IOException, InterruptedException {
 
             // Use an arraylist to store all the values. This provides us an
@@ -315,6 +316,20 @@ public class MCL extends Configured implements Tool {
 			column = column.substring(0, column.length() - 1);
 
 			context.write(key, new Text(column));
+		}
+
+		/**
+		 * @return the test
+		 */
+		public double getTest() {
+			return test;
+		}
+
+		/**
+		 * @param test the test to set
+		 */
+		public void setTest(double test) {
+			this.test = test;
 		}
 	}
 
