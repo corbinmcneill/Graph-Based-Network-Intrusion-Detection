@@ -68,7 +68,7 @@ public class MCL extends Configured implements Tool {
         boolean runStage3 = true;
         boolean runStage4 = true;
         boolean runStage5 = true;
-        boolean runStage6 = true;
+        boolean runStage6 = false;
 
 
         // Parse the command line variables:

@@ -16,7 +16,7 @@ import org.apache.hadoop.util.Tool;
 
 public class ClusterMerge extends Configured implements Tool {
 	
-	private static final String INTERMEDIATE_PATH = "/intermediate";
+	private static final String INTERMEDIATE_PATH = "/clustermerge";
 
 	@Override
 	public int run(String[] args) throws Exception {

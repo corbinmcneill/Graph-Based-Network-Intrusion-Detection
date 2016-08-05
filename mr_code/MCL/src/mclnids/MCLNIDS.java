@@ -10,9 +10,44 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.Tool;
+import org.apache.hadoop.util.ToolRunner;
+
+import clustermerge.ClusterMerge;
+import mcl.MCL;
+
 import org.apache.hadoop.fs.Path;
 
 public class MCLNIDS extends Configured implements Tool {
+
+	private static final String INTERMEDIATE_PATH_1 = "mcl/";
+	private static final String INTERMEDIATE_PATH_2 = "conversion/";
+	private static final String FINAL_PATH = "cluster_merge/";
+
+	public static int main(String[] args) throws Exception {
+        // Parse the command line variables:
+        // args[0] = input location, 
+        // args[1] = output location <- IGNORED
+        // args[2] = number of runs
+        // args[3] = number of vertices
+        // args[4] = number of reducers (I set this to the number of my processor's cores)
+        // args[5] = number of cycles (for expansion & inflation)
+        // args[6] = inflation parameter (the power that each col. is raised to)
+
+		String custromargs[] = args;
+
+		custromargs[1] = INTERMEDIATE_PATH_1;
+		ToolRunner.run(new MCL(), custromargs);
+
+		ToolRunner.run(
+		    new MCLNIDS(),
+		    new String[] {INTERMEDIATE_PATH_1+"MR5-run"+(Integer.parseInt(args[2])-1),
+		                  INTERMEDIATE_PATH_2}
+		);
+
+		ToolRunner.run(new ClusterMerge(), new String[] {INTERMEDIATE_PATH_2, FINAL_PATH});
+
+        return 0;
+	}
 
 	@Override
 	public int run(String[] args) throws Exception {
