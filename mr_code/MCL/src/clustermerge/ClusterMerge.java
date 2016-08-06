@@ -17,11 +17,12 @@ import org.apache.hadoop.util.Tool;
 public class ClusterMerge extends Configured implements Tool {
 	
 	private static final String INTERMEDIATE_PATH = "/clustermerge";
+	private enum Collisions {vertex1, vertex2};
+
 
 	@Override
 	public int run(String[] args) throws Exception {
 		Configuration conf = this.getConf();
-		conf.set("collision", "none");
 		
 		for (int i=0; ; i++) {
 		
@@ -40,9 +41,13 @@ public class ClusterMerge extends Configured implements Tool {
 			FileOutputFormat.setOutputPath(job1, new Path(args[1]+INTERMEDIATE_PATH+i+"a/"));
 			job1.waitForCompletion(true);
 
-			if (conf.get("collision").equals("none")) {
+			long vertex1 = job1.getCounters().findCounter(Collisions.vertex1).getValue();
+			long vertex2 = job1.getCounters().findCounter(Collisions.vertex2).getValue();
+			if (vertex1 == 0 && vertex2 == 0) {
 				break;
 			}
+
+			conf.set("collision", vertex1+","+vertex2);
 			
 			Job job2 = Job.getInstance(conf, "ClusterMerge 2");
 			job2.setJarByClass(ClusterMerge.class);
@@ -89,11 +94,16 @@ public class ClusterMerge extends Configured implements Tool {
 	}
 
 	private static class SelectCollision extends Reducer<Text, Text, Text, Text> {
+
 		@Override
 		protected void reduce(Text key, Iterable<Text> values, Context context) throws 
 		               java.io.IOException, InterruptedException {
 			if (key.toString().equals("COLLISION")) {
-				context.getConfiguration().set("collision", values.iterator().next().toString());
+				String stringVals[] = values.iterator().next().toString().split(",");
+				context.getCounter(Collisions.vertex1).setValue(Integer.parseInt(
+				                                                 stringVals[0]));
+				context.getCounter(Collisions.vertex2).setValue(Integer.parseInt(
+				                                                 stringVals[1]));
 			} else {
 				for (Text val : values) {
 					context.write(key, val);
@@ -108,9 +118,9 @@ public class ClusterMerge extends Configured implements Tool {
 		
 		@Override
 		protected void setup(Context context) {
-			String collision[] = context.getConfiguration().get("collision").split(",");
-			fromZone = collision[0];
-			toZone = collision[1];
+			String collisions[] = context.getConfiguration().get("collision").split(",");
+			fromZone = collisions[0];
+			toZone = collisions[1];
 		}
 
 		@Override
@@ -131,7 +141,7 @@ public class ClusterMerge extends Configured implements Tool {
 			}
 			if (outputString.length() > 0) {
 				outputString = outputString.substring(0, outputString.length()-1);
-				context.write(new Text(inputSplit[1]), new Text(outputString));
+				context.write(new Text(inputSplit[0]), new Text(outputString));
 			}
 		}
 	}

@@ -18,7 +18,6 @@ import mcl.MCL;
 import org.apache.hadoop.fs.Path;
 
 public class MCLNIDS extends Configured implements Tool {
-
 	private static final String INTERMEDIATE_PATH_1 = "mcl/";
 	private static final String INTERMEDIATE_PATH_2 = "conversion/";
 	private static final String FINAL_PATH = "cluster_merge/";
@@ -81,8 +80,9 @@ public class MCLNIDS extends Configured implements Tool {
 		}
 	}
 
-    private class ReformatReducer extends Reducer<Text, Text, Text, Text> {
+    private static class ReformatReducer extends Reducer<Text, Text, Text, Text> {
 
+		@Override
 		protected void reduce(Text key, Iterable<Text> values, Context context) 
 		               throws java.io.IOException, InterruptedException {
 			String outputValue = "";
